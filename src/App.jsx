@@ -7,7 +7,7 @@ const MathJax = ({ tex }) => {
     useEffect(() => {
         if (window.MathJax && tex) {
             // Correctly wrap the TeX string with delimiters for MathJax
-            window.MathJax.tex2svgPromise(`${tex}`)
+            window.MathJax.tex2svgPromise(`\\(${tex}\\)`)
                 .then((node) => {
                     const svgElement = node.querySelector('svg');
                     if (svgElement) {
@@ -194,9 +194,24 @@ export default function App() {
         }
     };
 
+    const handleUndo = () => {
+        // We can only undo if there is more than one step in the history.
+        if (steps.length > 1) {
+            setSteps(steps.slice(0, -1));
+        }
+    };
+
     const handleNewStep = async (e) => {
         e.preventDefault();
-        if (!newCommand.trim() || isLoading) return;
+        const command = newCommand.trim().toLowerCase();
+        if (!command || isLoading) return;
+
+        // Check for the "undo" command before making an API call.
+        if (command.includes('undo')) {
+            handleUndo();
+            setNewCommand(''); // Clear the input field
+            return; // Stop the function here
+        }
 
         setIsLoading(true);
         const lastEquation = steps[steps.length - 1].equation;
@@ -294,7 +309,10 @@ export default function App() {
                                     {isLoading ? 'Thinking...' : 'Add Step'}
                                 </button>
                             </form>
-                            <div className="pt-2 text-center">
+                            <div className="pt-2 text-center flex justify-center gap-4">
+                                <button onClick={handleUndo} className="bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-md transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled={steps.length <= 1}>
+                                    Undo Last Step
+                                </button>
                                 <button onClick={handleStartOver} className="bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-md transform hover:scale-105">
                                     Start Over
                                 </button>
@@ -307,13 +325,15 @@ export default function App() {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr>
-                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400 w-1/2">Equation (Editable)</th>
-                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400 w-1/2">Command</th>
+                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400 w-16 text-center">#</th>
+                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400">Equation (Editable)</th>
+                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400">Command</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {steps.map((step, index) => (
                                         <tr key={index} className="border-t border-gray-700 hover:bg-gray-700/50">
+                                            <td className="p-4 text-gray-400 align-middle text-lg font-bold text-center">{index + 1}</td>
                                             <td className="p-4 align-top">
                                                 <input 
                                                     type="text"
