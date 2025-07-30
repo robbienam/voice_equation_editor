@@ -38,8 +38,6 @@ const MathJax = ({ tex }) => {
 
 // Main App Component
 export default function App() {
-    console.log("App component rendering..."); // DEBUG LOG
-
     const [steps, setSteps] = useState([]);
     const [newCommand, setNewCommand] = useState('');
     const [newEquation, setNewEquation] = useState('');
@@ -51,15 +49,11 @@ export default function App() {
 
     // Load MathJax script and set a ready flag
     useEffect(() => {
-        console.log("Setting up MathJax..."); // DEBUG LOG
-        
-        // Configure MathJax BEFORE the script is loaded. This is the correct and stable way.
         window.MathJax = {
             tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
             svg: { fontCache: 'global' },
             startup: {
                 ready: () => {
-                    console.log("MathJax is ready to be used."); // DEBUG LOG
                     window.MathJax.startup.defaultReady();
                     setIsMathJaxReady(true);
                 }
@@ -70,13 +64,7 @@ export default function App() {
         script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
         script.id = "mathjax-script";
         script.async = true;
-        
-        script.onerror = () => {
-            console.error("MathJax script failed to load."); // DEBUG LOG
-        };
-
         document.head.appendChild(script);
-        console.log("MathJax script appended to head."); // DEBUG LOG
 
         return () => {
             const scriptTag = document.getElementById('mathjax-script');
@@ -86,7 +74,6 @@ export default function App() {
 
     // Setup Speech Recognition
     useEffect(() => {
-        console.log("Setting up Speech Recognition..."); // DEBUG LOG
         try {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
@@ -119,7 +106,6 @@ export default function App() {
             };
 
             recognitionRef.current = recognition;
-            console.log("Speech Recognition setup complete."); // DEBUG LOG
         } catch (error) {
             console.error("Failed to initialize Speech Recognition:", error);
         }
@@ -137,7 +123,6 @@ export default function App() {
                 setIsListening(true);
             }
         } else {
-            // Using a custom modal/div instead of alert
             const alertBox = document.createElement('div');
             alertBox.style.position = 'fixed';
             alertBox.style.top = '20px';
@@ -156,16 +141,28 @@ export default function App() {
         }
     };
 
-    // More robust function to clean delimiters from AI response
     const cleanEquation = (equationText) => {
         let cleaned = equationText.trim();
         cleaned = cleaned.replace(/^\\?\(|^\$/, '').replace(/\\?\)$|\$$/, '');
         return cleaned.trim();
     };
 
+    // Updated function to get the API key
+    const getApiKey = () => {
+        // In a Vite project, environment variables are accessed via import.meta.env
+        // The VITE_ prefix is required for them to be exposed to the client-side code.
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error("Gemini API key not found. Make sure you have set VITE_GEMINI_API_KEY in your environment variables.");
+            return null;
+        }
+        return apiKey;
+    };
+
     const handleStartEquation = async (e) => {
         e.preventDefault();
-        if (!newEquation.trim() || isLoading) return;
+        const apiKey = getApiKey();
+        if (!newEquation.trim() || isLoading || !apiKey) return;
 
         setIsLoading(true);
         const prompt = `You are a helpful math assistant. Your task is to convert a natural language sentence describing a mathematical equation into a valid LaTeX format.
@@ -174,7 +171,6 @@ export default function App() {
 
         try {
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -206,7 +202,8 @@ export default function App() {
 
     const handleNewStep = async (e) => {
         e.preventDefault();
-        if (!newCommand.trim() || isLoading) return;
+        const apiKey = getApiKey();
+        if (!newCommand.trim() || isLoading || !apiKey) return;
 
         setIsLoading(true);
         const lastEquation = steps[steps.length - 1].equation;
@@ -218,7 +215,6 @@ export default function App() {
 
         try {
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
@@ -260,7 +256,6 @@ export default function App() {
         setNewEquation('');
     };
 
-    // Show a loading indicator until MathJax is ready
     if (!isMathJaxReady) {
         return (
             <div className="bg-gray-900 text-white min-h-screen p-8 flex items-center justify-center">
