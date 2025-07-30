@@ -6,7 +6,6 @@ const MathJax = ({ tex }) => {
 
     useEffect(() => {
         if (window.MathJax && tex) {
-            // This function correctly adds the delimiters for rendering only.
             window.MathJax.tex2svgPromise(`\\(${tex}\\)`)
                 .then((node) => {
                     const svgElement = node.querySelector('svg');
@@ -147,22 +146,25 @@ export default function App() {
         return cleaned.trim();
     };
 
-    // Updated function to get the API key
-    const getApiKey = () => {
-        // In a Vite project, environment variables are accessed via import.meta.env
-        // The VITE_ prefix is required for them to be exposed to the client-side code.
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-            console.error("Gemini API key not found. Make sure you have set VITE_GEMINI_API_KEY in your environment variables.");
-            return null;
+    // This function now calls our secure Netlify function proxy
+    const callGeminiProxy = async (prompt) => {
+        const response = await fetch('/.netlify/functions/gemini-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Proxy call failed with status: ${response.status}. Body: ${errorText}`);
         }
-        return apiKey;
+
+        return response.json();
     };
 
     const handleStartEquation = async (e) => {
         e.preventDefault();
-        const apiKey = getApiKey();
-        if (!newEquation.trim() || isLoading || !apiKey) return;
+        if (!newEquation.trim() || isLoading) return;
 
         setIsLoading(true);
         const prompt = `You are a helpful math assistant. Your task is to convert a natural language sentence describing a mathematical equation into a valid LaTeX format.
@@ -170,18 +172,7 @@ export default function App() {
         Return ONLY the resulting equation in valid LaTeX format. Do not include any explanation, text, or enclosing characters like '$'. For example, if the sentence is "x squared plus y squared equals r squared", return "x^2 + y^2 = r^2".`;
 
         try {
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
-            
-            const result = await response.json();
+            const result = await callGeminiProxy(prompt);
             
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
                  const rawEquationText = result.candidates[0].content.parts[0].text;
@@ -192,7 +183,7 @@ export default function App() {
             }
 
         } catch (error) {
-            console.error("Error calling Gemini API:", error);
+            console.error("Error calling proxy function:", error);
             setSteps([{ equation: "Error: Could not convert. Please type.", command: 'Given' }]);
         } finally {
             setNewEquation('');
@@ -202,8 +193,7 @@ export default function App() {
 
     const handleNewStep = async (e) => {
         e.preventDefault();
-        const apiKey = getApiKey();
-        if (!newCommand.trim() || isLoading || !apiKey) return;
+        if (!newCommand.trim() || isLoading) return;
 
         setIsLoading(true);
         const lastEquation = steps[steps.length - 1].equation;
@@ -214,18 +204,7 @@ export default function App() {
         Return ONLY the resulting new equation in valid LaTeX format. Do not include any explanation, text, or enclosing characters like '$'. For example, if the result is 'x=5', return exactly that.`;
 
         try {
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
-
-            const result = await response.json();
+            const result = await callGeminiProxy(prompt);
             
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
                  const rawEquationText = result.candidates[0].content.parts[0].text;
@@ -236,7 +215,7 @@ export default function App() {
             }
 
         } catch (error) {
-            console.error("Error calling Gemini API:", error);
+            console.error("Error calling proxy function:", error);
             setSteps([...steps, { equation: "Error: Could not compute. Please edit.", command: newCommand }]);
         } finally {
             setNewCommand('');
