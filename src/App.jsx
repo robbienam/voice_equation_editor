@@ -6,7 +6,7 @@ const MathJax = ({ tex }) => {
 
     useEffect(() => {
         if (window.MathJax && tex) {
-            window.MathJax.tex2svgPromise(`${tex}`)
+            window.MathJax.tex2svgPromise(`\\(${tex}\\)`)
                 .then((node) => {
                     const svgElement = node.querySelector('svg');
                     if (svgElement) {
