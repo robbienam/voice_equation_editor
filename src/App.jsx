@@ -43,21 +43,27 @@ export default function App() {
     const [newEquation, setNewEquation] = useState('');
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isMathJaxReady, setIsMathJaxReady] = useState(false); // New state to track MathJax
     const recognitionRef = useRef(null);
     const speechTargetRef = useRef(null); 
 
-    // Load MathJax script
+    // Load MathJax script and set a ready flag
     useEffect(() => {
         const script = document.createElement('script');
         script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
         script.id = "mathjax-script";
         script.async = true;
-        document.head.appendChild(script);
-
-        window.MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-            svg: { fontCache: 'global' }
+        
+        // Set the ready flag once the script has loaded
+        script.onload = () => {
+            window.MathJax = {
+                tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+                svg: { fontCache: 'global' }
+            };
+            setIsMathJaxReady(true);
         };
+        
+        document.head.appendChild(script);
 
         return () => {
             const scriptTag = document.getElementById('mathjax-script');
@@ -115,8 +121,6 @@ export default function App() {
     // More robust function to clean delimiters from AI response
     const cleanEquation = (equationText) => {
         let cleaned = equationText.trim();
-        // Use a regular expression to remove leading '\(' or '$' and trailing '\)' or '$'
-        // This handles variations in the AI's output more reliably.
         cleaned = cleaned.replace(/^\\?\(|^\$/, '').replace(/\\?\)$|\$$/, '');
         return cleaned.trim();
     };
@@ -147,7 +151,7 @@ export default function App() {
             
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
                  const rawEquationText = result.candidates[0].content.parts[0].text;
-                 const finalEquation = cleanEquation(rawEquationText); // Clean the response
+                 const finalEquation = cleanEquation(rawEquationText);
                  setSteps([{ equation: finalEquation, command: 'Given' }]);
             } else {
                  setSteps([{ equation: "Error: Could not convert. Please type.", command: 'Given' }]);
@@ -191,7 +195,7 @@ export default function App() {
             
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
                  const rawEquationText = result.candidates[0].content.parts[0].text;
-                 const finalEquation = cleanEquation(rawEquationText); // Clean the response
+                 const finalEquation = cleanEquation(rawEquationText);
                  setSteps([...steps, { equation: finalEquation, command: newCommand }]);
             } else {
                  setSteps([...steps, { equation: "Error: Could not compute. Please edit.", command: newCommand }]);
@@ -218,6 +222,15 @@ export default function App() {
         setNewEquation('');
     };
 
+    // Show a loading indicator until MathJax is ready
+    if (!isMathJaxReady) {
+        return (
+            <div className="bg-gray-900 text-white min-h-screen p-8 flex items-center justify-center">
+                <h1 className="text-2xl text-cyan-400">Loading Equation Editor...</h1>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-gray-900 text-white min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
             <div className="max-w-4xl mx-auto">
@@ -238,79 +251,4 @@ export default function App() {
                                     className="w-full bg-gray-700 text-white placeholder-gray-500 rounded-lg pl-4 pr-12 py-3 border border-gray-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
                                     disabled={isLoading}
                                 />
-                                <button type="button" onClick={() => toggleListening('initial')} className={`absolute inset-y-0 right-0 flex items-center px-3 rounded-r-lg transition-colors ${isListening && speechTargetRef.current === 'initial' ? 'text-cyan-400 bg-gray-600' : 'text-gray-400 hover:text-white'}`} disabled={isLoading}>
-                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8h-1a6 6 0 11-12 0H3a7.001 7.001 0 006 6.93V17H7v1h6v-1h-2v-2.07z" clipRule="evenodd"></path></svg>
-                                </button>
-                            </div>
-                            <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-lg w-full sm:w-auto disabled:bg-gray-500 disabled:cursor-not-allowed" disabled={isLoading}>
-                                {isLoading ? 'Starting...' : 'Start'}
-                            </button>
-                        </form>
-                    ) : (
-                        <div className="space-y-4">
-                            <form onSubmit={handleNewStep} className="flex flex-col sm:flex-row items-center gap-4">
-                               <div className="relative flex-grow w-full">
-                                    <input
-                                        type="text"
-                                        value={newCommand}
-                                        onChange={(e) => setNewCommand(e.target.value)}
-                                        placeholder={isListening && speechTargetRef.current === 'command' ? "Listening..." : "Enter or speak your next command"}
-                                        className="w-full bg-gray-700 text-white placeholder-gray-500 rounded-lg pl-4 pr-12 py-3 border border-gray-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
-                                        disabled={isLoading}
-                                    />
-                                    <button type="button" onClick={() => toggleListening('command')} className={`absolute inset-y-0 right-0 flex items-center px-3 rounded-r-lg transition-colors ${isListening && speechTargetRef.current === 'command' ? 'text-cyan-400 bg-gray-600' : 'text-gray-400 hover:text-white'}`} disabled={isLoading}>
-                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8h-1a6 6 0 11-12 0H3a7.001 7.001 0 006 6.93V17H7v1h6v-1h-2v-2.07z" clipRule="evenodd"></path></svg>
-                                    </button>
-                               </div>
-                                <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 shadow-lg w-full sm:w-auto disabled:bg-gray-500 disabled:cursor-not-allowed" disabled={isLoading}>
-                                    {isLoading ? 'Thinking...' : 'Add Step'}
-                                </button>
-                            </form>
-                            <div className="pt-2 text-center">
-                                <button onClick={handleStartOver} className="bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition-colors shadow-md transform hover:scale-105">
-                                    Start Over
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {steps.length > 0 && (
-                        <div className="mt-8 overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr>
-                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400 w-1/2">Equation (Editable)</th>
-                                        <th className="border-b-2 border-gray-600 p-4 text-lg text-cyan-400 w-1/2">Command</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {steps.map((step, index) => (
-                                        <tr key={index} className="border-t border-gray-700 hover:bg-gray-700/50">
-                                            <td className="p-4 align-top">
-                                                <input 
-                                                    type="text"
-                                                    value={step.equation}
-                                                    onChange={(e) => handleEquationEdit(index, e.target.value)}
-                                                    className="w-full bg-transparent text-lg text-white focus:outline-none focus:bg-gray-600 rounded px-2 py-1 mb-2"
-                                                />
-                                                <div className="min-h-[60px] flex items-center justify-center">
-                                                    <MathJax tex={step.equation} />
-                                                 </div>
-                                            </td>
-                                            <td className="p-4 text-gray-300 align-middle text-lg">
-                                                {step.command}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-                 <footer className="text-center mt-8 text-gray-500 text-sm">
-                    <p>Powered by Gemini, React, & MathJax</p>
-                </footer>
-            </div>
-        </div>
-    );
-}
+                                <button type="button" onClick={() => toggleListening('initial
