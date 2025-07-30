@@ -6,6 +6,7 @@ const MathJax = ({ tex }) => {
 
     useEffect(() => {
         if (window.MathJax && tex) {
+            // Correctly wrap the TeX string with delimiters for MathJax
             window.MathJax.tex2svgPromise(`${tex}`)
                 .then((node) => {
                     const svgElement = node.querySelector('svg');
@@ -167,8 +168,9 @@ export default function App() {
         if (!newEquation.trim() || isLoading) return;
 
         setIsLoading(true);
+        const initialUserCommand = newEquation; // Capture the user's command
         const prompt = `You are a helpful math assistant. Your task is to convert a natural language sentence describing a mathematical equation into a valid LaTeX format.
-        Sentence: "${newEquation}"
+        Sentence: "${initialUserCommand}"
         Return ONLY the resulting equation in valid LaTeX format. Do not include any explanation, text, or enclosing characters like '$'. For example, if the sentence is "x squared plus y squared equals r squared", return "x^2 + y^2 = r^2".`;
 
         try {
@@ -177,14 +179,15 @@ export default function App() {
             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
                  const rawEquationText = result.candidates[0].content.parts[0].text;
                  const finalEquation = cleanEquation(rawEquationText);
-                 setSteps([{ equation: finalEquation, command: 'Given' }]);
+                 // Use the captured user command instead of "Given"
+                 setSteps([{ equation: finalEquation, command: initialUserCommand }]);
             } else {
-                 setSteps([{ equation: "Error: Could not convert. Please type.", command: 'Given' }]);
+                 setSteps([{ equation: "Error: Could not convert. Please type.", command: initialUserCommand }]);
             }
 
         } catch (error) {
             console.error("Error calling proxy function:", error);
-            setSteps([{ equation: "Error: Could not convert. Please type.", command: 'Given' }]);
+            setSteps([{ equation: "Error: Could not convert. Please type.", command: initialUserCommand }]);
         } finally {
             setNewEquation('');
             setIsLoading(false);
