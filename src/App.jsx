@@ -7,7 +7,7 @@ const MathJax = ({ tex }) => {
     useEffect(() => {
         if (window.MathJax && tex) {
             // Correctly wrap the TeX string with delimiters for MathJax
-            window.MathJax.tex2svgPromise(`\\(${tex}\\)`)
+            window.MathJax.tex2svgPromise(`${tex}`)
                 .then((node) => {
                     const svgElement = node.querySelector('svg');
                     if (svgElement) {
