@@ -43,26 +43,29 @@ export default function App() {
     const [newEquation, setNewEquation] = useState('');
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isMathJaxReady, setIsMathJaxReady] = useState(false); // New state to track MathJax
+    const [isMathJaxReady, setIsMathJaxReady] = useState(false);
     const recognitionRef = useRef(null);
     const speechTargetRef = useRef(null); 
 
     // Load MathJax script and set a ready flag
     useEffect(() => {
+        // Configure MathJax BEFORE the script is loaded. This is the correct and stable way.
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: {
+                ready: () => {
+                    // A callback to run when MathJax is ready.
+                    window.MathJax.startup.defaultReady();
+                    setIsMathJaxReady(true);
+                }
+            }
+        };
+
         const script = document.createElement('script');
         script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
         script.id = "mathjax-script";
         script.async = true;
-        
-        // Set the ready flag once the script has loaded
-        script.onload = () => {
-            window.MathJax = {
-                tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-                svg: { fontCache: 'global' }
-            };
-            setIsMathJaxReady(true);
-        };
-        
         document.head.appendChild(script);
 
         return () => {
@@ -73,48 +76,56 @@ export default function App() {
 
     // Setup Speech Recognition
     useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            console.error("Speech Recognition not supported in this browser.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            if (speechTargetRef.current === 'initial') {
-                setNewEquation(transcript);
-            } else if (speechTargetRef.current === 'command') {
-                setNewCommand(transcript);
+        try {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn("Speech Recognition not supported in this browser.");
+                return;
             }
-        };
 
-        recognition.onerror = (event) => {
-            console.error("Speech recognition error:", event.error);
-            setIsListening(false);
-        };
-        
-        recognition.onend = () => {
-            setIsListening(false);
-            speechTargetRef.current = null;
-        };
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
 
-        recognitionRef.current = recognition;
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                if (speechTargetRef.current === 'initial') {
+                    setNewEquation(transcript);
+                } else if (speechTargetRef.current === 'command') {
+                    setNewCommand(transcript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+                setIsListening(false);
+            };
+            
+            recognition.onend = () => {
+                setIsListening(false);
+                speechTargetRef.current = null;
+            };
+
+            recognitionRef.current = recognition;
+        } catch (error) {
+            console.error("Failed to initialize Speech Recognition:", error);
+        }
 
     }, []);
 
     const toggleListening = (target) => {
-        if (isListening) {
-            recognitionRef.current?.stop();
-            setIsListening(false);
+        if (recognitionRef.current) {
+            if (isListening) {
+                recognitionRef.current?.stop();
+                setIsListening(false);
+            } else {
+                speechTargetRef.current = target;
+                recognitionRef.current?.start();
+                setIsListening(true);
+            }
         } else {
-            speechTargetRef.current = target;
-            recognitionRef.current?.start();
-            setIsListening(true);
+            alert("Speech recognition is not available on this browser.");
         }
     };
 
@@ -206,49 +217,4 @@ export default function App() {
             setSteps([...steps, { equation: "Error: Could not compute. Please edit.", command: newCommand }]);
         } finally {
             setNewCommand('');
-            setIsLoading(false);
-        }
-    };
-    
-    const handleEquationEdit = (index, text) => {
-        const updatedSteps = [...steps];
-        updatedSteps[index].equation = text;
-        setSteps(updatedSteps);
-    };
-
-    const handleStartOver = () => {
-        setSteps([]);
-        setNewCommand('');
-        setNewEquation('');
-    };
-
-    // Show a loading indicator until MathJax is ready
-    if (!isMathJaxReady) {
-        return (
-            <div className="bg-gray-900 text-white min-h-screen p-8 flex items-center justify-center">
-                <h1 className="text-2xl text-cyan-400">Loading Equation Editor...</h1>
-            </div>
-        );
-    }
-
-    return (
-        <div className="bg-gray-900 text-white min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
-            <div className="max-w-4xl mx-auto">
-                <header className="text-center mb-8">
-                    <h1 className="text-3xl sm:text-4xl font-bold text-cyan-400">AI-Powered Equation Editor</h1>
-                    <p className="text-gray-400 mt-2">Use your voice to dictate commands and watch the AI create or manipulate a math expression.</p>
-                </header>
-
-                <div className="bg-gray-800 shadow-2xl rounded-xl p-6">
-                    {steps.length === 0 ? (
-                        <form onSubmit={handleStartEquation} className="flex flex-col sm:flex-row items-center gap-4">
-                            <div className="relative flex-grow w-full">
-                                <input
-                                    type="text"
-                                    value={newEquation}
-                                    onChange={(e) => setNewEquation(e.target.value)}
-                                    placeholder={isListening && speechTargetRef.current === 'initial' ? "Listening..." : "Enter or speak initial equation"}
-                                    className="w-full bg-gray-700 text-white placeholder-gray-500 rounded-lg pl-4 pr-12 py-3 border border-gray-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"
-                                    disabled={isLoading}
-                                />
-                                <button type="button" onClick={() => toggleListening('initial
+            setIsLoad
